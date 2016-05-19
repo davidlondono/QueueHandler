@@ -7,8 +7,12 @@
 //
 import Foundation
 
-struct Queue {
+public struct Queue {
     
+    public enum QueueConcurrency {
+        case Serial
+        case Concurrent
+    }
     private let queue: dispatch_queue_t
     
     
@@ -29,7 +33,15 @@ struct Queue {
         dispatch_async(queue,block)
     }
     
-    func after(when: dispatch_time_t, block: ()->()) {
+    func after(when when: dispatch_time_t, block: ()->()) {
+        dispatch_after(when, queue, block)
+    }
+    
+    func after(after: NSTimeInterval, block: ()->()) {
+        let when = dispatch_time(
+            DISPATCH_TIME_NOW,
+            Int64(after * Double(NSEC_PER_SEC))
+        )
         dispatch_after(when, queue, block)
     }
     
@@ -42,13 +54,15 @@ struct Queue {
     }
     
     
+}
+
+
+extension Queue {
     static var Main: Queue {
         let queue = dispatch_get_main_queue()
         return Queue(queue)
     }
-    
 }
-
 extension Queue {
     struct Global {
         private init() {}
@@ -73,15 +87,66 @@ extension Queue {
                 let queue =  dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0)
                 return Queue(queue)
             }
-            
         }
+        static var Current: Queue {
+            let queue =  DISPATCH_CURRENT_QUEUE_LABEL
+            return Queue(queue)
+        }
+
+        
     }
     
 }
 
-
-
-typealias dispatch_cancelable_closure = (cancel: Bool) -> Void
+extension Queue {
+    struct QOS {
+        struct User {
+            static var Interactive: Queue {
+                return self.Interactive()
+            }
+            static func Interactive(flags: UInt = 0) -> Queue {
+                let queue =  dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, flags)
+                return Queue(queue)
+            }
+            static var Initiated: Queue {
+                return self.Initiated()
+            }
+            static func Initiated(flags: UInt = 0) -> Queue {
+                let queue =  dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, flags)
+                return Queue(queue)
+            }
+        }
+        static var Default: Queue {
+            return self.Default()
+        }
+        static func Default(flags: UInt = 0) -> Queue {
+            let queue =  dispatch_get_global_queue(QOS_CLASS_DEFAULT, flags)
+            return Queue(queue)
+        }
+        static var Utility: Queue {
+            return self.Utility()
+        }
+        static func Utility(flags: UInt = 0) -> Queue {
+            let queue =  dispatch_get_global_queue(QOS_CLASS_UTILITY, flags)
+            return Queue(queue)
+        }
+        static var Background: Queue {
+            return self.Background()
+        }
+        static func Background(flags: UInt = 0) -> Queue {
+            let queue =  dispatch_get_global_queue(QOS_CLASS_BACKGROUND, flags)
+            return Queue(queue)
+        }
+        static var Unespecified: Queue {
+            return self.Default(0)
+        }
+        static func Unespecified(flags: UInt = 0) -> Queue {
+            let queue =  dispatch_get_global_queue(QOS_CLASS_UNSPECIFIED, flags)
+            return Queue(queue)
+        }
+    }
+    
+}
 
 class Delay {
     private let time: NSTimeInterval
